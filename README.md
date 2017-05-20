@@ -2,6 +2,11 @@
 
 adtracker is a RESTful persistent key-value store
 
+## Installation ##
+```bash
+go get -u github.com/aultimus/adtracker/adtracker
+```
+
 ## Usage ##
 
 start redis
@@ -9,7 +14,13 @@ start redis
 $ redis-server
 ```
 
-ad_count and track endpoints serve as get and increment operations
+start adtracker server
+```bash
+$ adtracker
+```
+
+ad_count and track endpoints serve as get and increment operations.
+example client usage:
 
 ```bash
 $ curl localhost:5000/ad_count -X GET --data '{"ID":"foo"}'
