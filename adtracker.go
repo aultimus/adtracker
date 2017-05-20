@@ -58,7 +58,7 @@ func NewBasicStore() *BasicStore {
 type RedisStorage struct {
 	prefix    string
 	redisAddr string
-	conn      redis.Conn
+	pool      *redis.Pool
 }
 
 // NewRedisStorage constructs a RedisStorage.
@@ -71,31 +71,15 @@ func NewRedisStorage(redisAddr string, prefix string) *RedisStorage {
 	rs := RedisStorage{
 		prefix:    prefix,
 		redisAddr: redisAddr,
+		pool: &redis.Pool{
+			MaxIdle:     3,
+			IdleTimeout: 240 * time.Second,
+			Dial: func() (redis.Conn, error) {
+				return redis.Dial("tcp", redisAddr)
+			},
+		},
 	}
 	return &rs
-}
-
-func (rs *RedisStorage) closeClient() {
-	if rs.conn != nil {
-		rs.conn.Close()
-		rs.conn = nil
-	}
-}
-
-func (rs *RedisStorage) connectIfNil() error {
-	// Don't ping/pong here, since that would double the number
-	// of operations we do
-	if rs.conn != nil {
-		return nil
-	}
-
-	conn, err := redis.Dial("tcp", rs.redisAddr)
-	if err != nil {
-		timber.Errorf("Can't dial redis on [%s]: %s", rs.redisAddr, err)
-		return err
-	}
-	rs.conn = conn
-	return nil
 }
 
 func (rs *RedisStorage) makeKey(name string) string {
@@ -106,14 +90,11 @@ func (rs *RedisStorage) makeKey(name string) string {
 // Get fetches a value from redis
 func (rs *RedisStorage) Get(key string) (int, error) {
 	key = rs.makeKey(key)
-	err := rs.connectIfNil()
+	conn := rs.pool.Get()
+	defer conn.Close()
+
+	val, err := redis.String(conn.Do("GET", key))
 	if err != nil {
-		rs.closeClient()
-		return 0, err
-	}
-	val, err := redis.String(rs.conn.Do("GET", key))
-	if err != nil {
-		rs.closeClient()
 		return 0, fmt.Errorf("Can't get [%s] from redis: %s", key, err)
 	}
 	i, err := strconv.Atoi(val)
@@ -123,14 +104,11 @@ func (rs *RedisStorage) Get(key string) (int, error) {
 // Increment stores a value to redis
 func (rs *RedisStorage) Increment(key string) error {
 	key = rs.makeKey(key)
-	err := rs.connectIfNil()
+	conn := rs.pool.Get()
+	defer conn.Close()
+
+	_, err := conn.Do("INCR", key)
 	if err != nil {
-		rs.closeClient()
-		return err
-	}
-	_, err = rs.conn.Do("INCR", key)
-	if err != nil {
-		rs.closeClient()
 		err = fmt.Errorf("Can't incr [%s] via redis: %s", key, err.Error())
 	}
 	return err
