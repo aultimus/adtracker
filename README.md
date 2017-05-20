@@ -1,6 +1,6 @@
 # adtracker
 
-adtracker is a RESTful persistent key-value store
+adtracker is a persistent RESTful ad tracking service
 
 ## Installation ##
 ```bash
@@ -19,7 +19,7 @@ start adtracker server
 $ adtracker
 ```
 
-ad_count and track endpoints serve as get and increment operations.
+ad_count and track endpoints serve as get and increment operations for the given ID
 example client usage:
 
 ```bash
