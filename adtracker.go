@@ -18,8 +18,7 @@ import (
 // AdTracker
 type Storer interface {
 	Get(string) (int, error)
-	Increment(string)
-	// Save?
+	Increment(string) error
 }
 
 // BasicStore is a basic in memory threadsafe store without persistence
@@ -43,10 +42,11 @@ func (bc *BasicStore) Get(key string) (int, error) {
 }
 
 // Increment increments the value stored under the given key
-func (bc *BasicStore) Increment(key string) {
+func (bc *BasicStore) Increment(key string) error {
 	bc.Lock()
 	defer bc.Unlock()
 	bc.m[key]++
+	return nil
 }
 
 // NewBasicStore returns a new instance of BasicStore
@@ -121,22 +121,19 @@ func (rs *RedisStorage) Get(key string) (int, error) {
 }
 
 // Increment stores a value to redis
-func (rs *RedisStorage) Increment(key string) {
+func (rs *RedisStorage) Increment(key string) error {
 	key = rs.makeKey(key)
 	err := rs.connectIfNil()
 	if err != nil {
-		// TODO: expose error
-		timber.Errorf(err.Error())
 		rs.closeClient()
-		return
+		return err
 	}
 	_, err = rs.conn.Do("INCR", key)
 	if err != nil {
 		rs.closeClient()
-		// TODO: expose this possible error to the client
-		timber.Errorf("Can't incr [%s] via redis: %s", key, err)
+		err = fmt.Errorf("Can't incr [%s] via redis: %s", key, err.Error())
 	}
-	return
+	return err
 }
 
 // These structs are easily marshallable as json and the definitions serve as
@@ -195,8 +192,12 @@ func (at *AdTracker) trackHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		timber.Debugf("increment %s\n", id)
-		at.store.Increment(id)
-
+		err = at.store.Increment(id)
+		if err != nil {
+			timber.Errorf(err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	default:
 		http.Error(w, fmt.Sprintf("unsupported http method %s", r.Method),
 			http.StatusMethodNotAllowed)
