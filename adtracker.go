@@ -6,10 +6,12 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/cocoonlife/timber"
+	"github.com/garyburd/redigo/redis"
 )
 
 // Storer is an interface which satisfies the datastore requirements of
@@ -22,6 +24,7 @@ type Storer interface {
 
 // BasicStore is a basic in memory threadsafe store without persistence
 // BasicStore allows us to run the AdTracker with minimal dependencies
+// TODO: Replace BasicStore with usage of github.com/rafaeljusto/redigomock
 type BasicStore struct {
 	m map[string]int
 	sync.Mutex
@@ -49,6 +52,91 @@ func (bc *BasicStore) Increment(key string) {
 // NewBasicStore returns a new instance of BasicStore
 func NewBasicStore() *BasicStore {
 	return &BasicStore{m: make(map[string]int)}
+}
+
+// RedisStorage saves and loads files to Redis, implements Storer interface
+type RedisStorage struct {
+	prefix    string
+	redisAddr string
+	conn      redis.Conn
+}
+
+// NewRedisStorage constructs a RedisStorage.
+// We maintain a long lived connection.
+// Every operation first checks to see if we have a client (and does nothing if we do)
+// If we see any error, we close and release the client, which will cause the next operation
+// to attempt a new connection.
+// No retry logic is currently implemented.
+func NewRedisStorage(redisAddr string, prefix string) *RedisStorage {
+	rs := RedisStorage{
+		prefix:    prefix,
+		redisAddr: redisAddr,
+	}
+	return &rs
+}
+
+func (rs *RedisStorage) closeClient() {
+	if rs.conn != nil {
+		rs.conn.Close()
+		rs.conn = nil
+	}
+}
+
+func (rs *RedisStorage) connectIfNil() error {
+	// Don't ping/pong here, since that would double the number
+	// of operations we do
+	if rs.conn != nil {
+		return nil
+	}
+
+	conn, err := redis.Dial("tcp", rs.redisAddr)
+	if err != nil {
+		timber.Errorf("Can't dial redis on [%s]: %s", rs.redisAddr, err)
+		return err
+	}
+	rs.conn = conn
+	return nil
+}
+
+func (rs *RedisStorage) makeKey(name string) string {
+	key := rs.prefix + "/" + name
+	return key
+}
+
+// Get fetches a value from redis
+func (rs *RedisStorage) Get(key string) (int, error) {
+	key = rs.makeKey(key)
+	err := rs.connectIfNil()
+	if err != nil {
+		rs.closeClient()
+		return 0, err
+	}
+	val, err := redis.String(rs.conn.Do("GET", key))
+	if err != nil {
+		rs.closeClient()
+		return 0, fmt.Errorf("Can't get [%s] from redis: %s", key, err)
+	}
+	i, err := strconv.Atoi(val)
+	return i, err
+}
+
+// Increment stores a value to redis
+func (rs *RedisStorage) Increment(key string) {
+	key = rs.makeKey(key)
+	err := rs.connectIfNil()
+	if err != nil {
+		// TODO: expose error
+		timber.Errorf(err.Error())
+		rs.closeClient()
+		return
+	}
+	_, err = rs.conn.Do("INCR", key)
+	if err != nil {
+		rs.closeClient()
+		// TODO: expose this possible error to the client
+		timber.Errorf("Can't incr [%s] via redis: %s", key, err)
+	}
+	return
 }
 
 // These structs are easily marshallable as json and the definitions serve as
@@ -167,7 +255,7 @@ func (at *AdTracker) adCountHandler(w http.ResponseWriter, r *http.Request) {
 func Run(port int) {
 	mux := http.NewServeMux()
 
-	h := AdTracker{store: NewBasicStore()}
+	h := AdTracker{store: NewRedisStorage(":6379", "adtracker")}
 	mux.HandleFunc("/track", h.trackHandler)
 	mux.HandleFunc("/ad_count", h.adCountHandler)
 

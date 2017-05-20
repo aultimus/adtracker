@@ -4,6 +4,11 @@ adtracker is a RESTful persistent key-value store
 
 ## Usage ##
 
+start redis
+```bash
+$ redis-server
+```
+
 ad_count and track endpoints serve as get and increment operations
 
 ```bash
