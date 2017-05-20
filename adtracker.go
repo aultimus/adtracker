@@ -169,7 +169,7 @@ func (at *AdTracker) trackHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		timber.Debugf("increment %s\n", id)
+		timber.Debugf("increment %s", id)
 		err = at.store.Increment(id)
 		if err != nil {
 			timber.Errorf(err.Error())
@@ -198,7 +198,7 @@ func (at *AdTracker) adCountHandler(w http.ResponseWriter, r *http.Request) {
 		// Retrieve stored value for given id
 		val, err := at.store.Get(id)
 
-		timber.Debugf("get %s = %d\n", id, val)
+		timber.Debugf("get %s = %d", id, val)
 
 		// Handle unknown ID
 		if err != nil {
