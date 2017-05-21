@@ -158,6 +158,8 @@ type AdTracker struct {
 
 // trackHandler given an id, retrieves, increments and persists the
 // value stored under that ID - endpoint /track
+// Was unsure whether PUT or POST was more restful as the operation is not
+// idempotent (POST) but can be consider as an update rather than a create (PUT)
 func (at *AdTracker) trackHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPut:
