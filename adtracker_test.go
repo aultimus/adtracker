@@ -1,7 +1,6 @@
 package adtracker
 
 import (
-	"bytes"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -11,9 +10,11 @@ import (
 	"github.com/cocoonlife/testify/assert"
 )
 
-func doRequest(handler http.HandlerFunc, r *http.Request) (int, []byte) {
+func doRequest(
+	handler func(w http.ResponseWriter, r *http.Request, vars map[string]string),
+	r *http.Request, vars map[string]string) (int, []byte) {
 	w := httptest.NewRecorder()
-	handler(w, r)
+	handler(w, r, vars)
 	resp := w.Result()
 
 	var body []byte
@@ -34,68 +35,38 @@ func TestHandlers(t *testing.T) {
 	a := assert.New(t)
 
 	at := AdTracker{NewBasicStore()}
+	vars := map[string]string{"id": "some_id"}
 
 	// GET on non-existing key results in 404
-	b, err := json.Marshal(AdCountReq{"some_id"})
-	a.NoError(err)
-	req := httptest.NewRequest(http.MethodGet, "http://foo", bytes.NewReader(b))
-	code, _ := doRequest(at.adCountHandler, req)
+	req := httptest.NewRequest(http.MethodGet, "http://foo", nil)
+	code, _ := doRequest(at.adCountHandlerVars, req, vars)
 	a.Equal(http.StatusNotFound, code)
 
 	// increment non-existent key is valid
-	req = httptest.NewRequest(http.MethodPut, "http://foo", bytes.NewReader(b))
-	code, _ = doRequest(at.trackHandler, req)
+	req = httptest.NewRequest(http.MethodPut, "http://foo", nil)
+	code, _ = doRequest(at.trackHandlerVars, req, vars)
 	a.Equal(http.StatusOK, code)
 
 	// GET on incremented key returns 1
-	req = httptest.NewRequest(http.MethodGet, "http://foo", bytes.NewReader(b))
-	code, respBytes := doRequest(at.adCountHandler, req)
+	req = httptest.NewRequest(http.MethodGet, "http://foo", nil)
+	code, respBytes := doRequest(at.adCountHandlerVars, req, vars)
 	a.Equal(http.StatusOK, code)
 	v, err := parseResponse(respBytes)
 	a.NoError(err)
 	a.Equal(1, v)
 
 	// increment existing key is valid
-	req = httptest.NewRequest(http.MethodPut, "http://foo", bytes.NewReader(b))
-	code, _ = doRequest(at.trackHandler, req)
+	req = httptest.NewRequest(http.MethodPut, "http://foo", nil)
+	code, _ = doRequest(at.trackHandlerVars, req, vars)
 	a.Equal(http.StatusOK, code)
 
 	// GET on already incremented key returns 2
-	req = httptest.NewRequest(http.MethodGet, "http://foo", bytes.NewReader(b))
-	code, respBytes = doRequest(at.adCountHandler, req)
+	req = httptest.NewRequest(http.MethodGet, "http://foo", nil)
+	code, respBytes = doRequest(at.adCountHandlerVars, req, vars)
 	a.Equal(http.StatusOK, code)
 	v, err = parseResponse(respBytes)
 	a.NoError(err)
 	a.Equal(2, v)
-}
-
-func TestEmptyID(t *testing.T) {
-	a := assert.New(t)
-
-	at := AdTracker{NewBasicStore()}
-
-	// empty id is a valid identifier - perhaps should not be
-	b, err := json.Marshal(AdCountReq{""})
-	a.NoError(err)
-	req := httptest.NewRequest(http.MethodGet, "http://foo", bytes.NewReader(b))
-	code, _ := doRequest(at.adCountHandler, req)
-	a.Equal(http.StatusNotFound, code)
-}
-
-func TestInvalidReq(t *testing.T) {
-	a := assert.New(t)
-
-	at := AdTracker{NewBasicStore()}
-
-	// empty id is a valid identifier - perhaps should not be
-	b := []byte("{'foo': 'bar'}")
-	req := httptest.NewRequest(http.MethodGet, "http://foo", bytes.NewReader(b))
-	code, _ := doRequest(at.adCountHandler, req)
-	a.Equal(http.StatusBadRequest, code)
-
-	req = httptest.NewRequest(http.MethodPut, "http://foo", bytes.NewReader(b))
-	code, _ = doRequest(at.trackHandler, req)
-	a.Equal(http.StatusBadRequest, code)
 }
 
 func TestInvalidMethod(t *testing.T) {
