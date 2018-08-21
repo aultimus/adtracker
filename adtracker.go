@@ -119,32 +119,32 @@ func (rs *RedisStorage) Increment(key string) error {
 // Using json allows us to easily extend the api in the future without breaking
 // clients. We use json tags so api is not tightly coupled to variable names.
 
-// AdCountResp represents the data format of the response body of the /ad_count
+// Resp represents the data format of the response body of the /ad_count
 // endpoint
-type AdCountResp struct {
+type Resp struct {
 	Value int `json:"value"`
 }
 
-// AdTracker is an implementation of an adtracking server
+// App is an implementation of an adtracking server
 // It would be nicer to use the same endpoint for both get and increment ops
 // but different HTTP verbs.
-type AdTracker struct {
+type App struct {
 	store Storer
 }
 
-// trackHandler given an id, retrieves, increments and persists the
+// incHandler given an id, retrieves, increments and persists the
 // value stored under that ID - endpoint /track
 // Was unsure whether PUT or POST was more restful as the operation is not
 // idempotent (POST) but can be consider as an update rather than a create (PUT)
-func (at *AdTracker) trackHandler(w http.ResponseWriter, r *http.Request) {
-	at.trackHandlerVars(w, r, mux.Vars(r))
+func (a *App) incHandler(w http.ResponseWriter, r *http.Request) {
+	a.incHandlerVars(w, r, mux.Vars(r))
 }
 
-func (at *AdTracker) trackHandlerVars(w http.ResponseWriter, r *http.Request, vars map[string]string) {
+func (a *App) incHandlerVars(w http.ResponseWriter, r *http.Request, vars map[string]string) {
 	id := vars["id"]
 	timber.Debugf("increment %s", id)
 
-	err := at.store.Increment(id)
+	err := a.store.Increment(id)
 	if err != nil {
 		timber.Errorf(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -152,11 +152,11 @@ func (at *AdTracker) trackHandlerVars(w http.ResponseWriter, r *http.Request, va
 	}
 }
 
-func (at *AdTracker) adCountHandlerVars(w http.ResponseWriter, r *http.Request, vars map[string]string) {
+func (a *App) getHandlerVars(w http.ResponseWriter, r *http.Request, vars map[string]string) {
 	id := vars["id"]
 
 	// Retrieve stored value for given id
-	val, err := at.store.Get(id)
+	val, err := a.store.Get(id)
 
 	timber.Debugf("get %s = %d", id, val)
 
@@ -168,8 +168,8 @@ func (at *AdTracker) adCountHandlerVars(w http.ResponseWriter, r *http.Request, 
 	}
 
 	// Marshal response json
-	adCountResp := AdCountResp{val}
-	respBytes, err := json.Marshal(adCountResp)
+	resp := Resp{val}
+	respBytes, err := json.Marshal(resp)
 	if err != nil {
 		timber.Errorf(err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -186,20 +186,20 @@ func (at *AdTracker) adCountHandlerVars(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
-// adCountHandler given an id, retrieves and returns the associated
+// getHandler given an id, retrieves and returns the associated
 // stored value - endpoint /ad_count
-func (at *AdTracker) adCountHandler(w http.ResponseWriter, r *http.Request) {
-	at.adCountHandlerVars(w, r, mux.Vars(r))
+func (a *App) getHandler(w http.ResponseWriter, r *http.Request) {
+	a.getHandlerVars(w, r, mux.Vars(r))
 }
 
-// Run runs an adtracker on the specified port
+// Run runs the server on the specified port
 func Run(port int) {
 
-	h := AdTracker{store: NewRedisStorage(":6379", "adtracker")}
+	h := App{store: NewRedisStorage(":6379", "adtracker")}
 
 	r := mux.NewRouter()
-	r.HandleFunc("/track/{id}", h.trackHandler).Methods(http.MethodPut)
-	r.HandleFunc("/ad_count/{id}", h.adCountHandler).Methods(http.MethodGet)
+	r.HandleFunc("/track/{id}", h.incHandler).Methods(http.MethodPut)
+	r.HandleFunc("/ad_count/{id}", h.getHandler).Methods(http.MethodGet)
 
 	s := http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
@@ -212,8 +212,3 @@ func Run(port int) {
 
 	log.Fatal(s.ListenAndServe())
 }
-
-// TODO: improve logging so it has context information related to a specific
-// request
-
-// TODO: vendor deps

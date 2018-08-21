@@ -26,7 +26,7 @@ func doRequest(
 }
 
 func parseResponse(b []byte) (int, error) {
-	resp := AdCountResp{}
+	resp := Resp{}
 	err := json.Unmarshal(b, &resp)
 	return resp.Value, err
 }
@@ -34,22 +34,22 @@ func parseResponse(b []byte) (int, error) {
 func TestHandlers(t *testing.T) {
 	a := assert.New(t)
 
-	at := AdTracker{NewBasicStore()}
+	at := App{NewBasicStore()}
 	vars := map[string]string{"id": "some_id"}
 
 	// GET on non-existing key results in 404
 	req := httptest.NewRequest(http.MethodGet, "http://foo", nil)
-	code, _ := doRequest(at.adCountHandlerVars, req, vars)
+	code, _ := doRequest(at.getHandlerVars, req, vars)
 	a.Equal(http.StatusNotFound, code)
 
 	// increment non-existent key is valid
 	req = httptest.NewRequest(http.MethodPut, "http://foo", nil)
-	code, _ = doRequest(at.trackHandlerVars, req, vars)
+	code, _ = doRequest(at.incHandlerVars, req, vars)
 	a.Equal(http.StatusOK, code)
 
 	// GET on incremented key returns 1
 	req = httptest.NewRequest(http.MethodGet, "http://foo", nil)
-	code, respBytes := doRequest(at.adCountHandlerVars, req, vars)
+	code, respBytes := doRequest(at.getHandlerVars, req, vars)
 	a.Equal(http.StatusOK, code)
 	v, err := parseResponse(respBytes)
 	a.NoError(err)
@@ -57,12 +57,12 @@ func TestHandlers(t *testing.T) {
 
 	// increment existing key is valid
 	req = httptest.NewRequest(http.MethodPut, "http://foo", nil)
-	code, _ = doRequest(at.trackHandlerVars, req, vars)
+	code, _ = doRequest(at.incHandlerVars, req, vars)
 	a.Equal(http.StatusOK, code)
 
 	// GET on already incremented key returns 2
 	req = httptest.NewRequest(http.MethodGet, "http://foo", nil)
-	code, respBytes = doRequest(at.adCountHandlerVars, req, vars)
+	code, respBytes = doRequest(at.getHandlerVars, req, vars)
 	a.Equal(http.StatusOK, code)
 	v, err = parseResponse(respBytes)
 	a.NoError(err)

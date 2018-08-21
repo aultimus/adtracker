@@ -40,3 +40,7 @@ This service is implemented in golang as it is well suited to the webservice pro
 Redis was used as a datastore as it is in memory and therefore performant but also satisfies the persistence criteria. The simplicity of the data and queries meant that a relational database would have been uneccesary and also harder to scale.
 
 It would be possible to scale this service horizontally onto multiple instances using a load balancer to balance traffic between adtracker instances. The multiple instances could use a single redis instance, if redis becomes a bottleneck then redis partitioning could be investigated in order to increase throughput, however this would only be necessary with extermely heavy usage.
+
+## TODO ##
+* improve logging so it has context information related to a specific request
+* vendor deps
