@@ -1,6 +1,6 @@
 # adtracker
 
-adtracker is a persistent RESTful ad tracking service
+adtracker is a persistent RESTful ad tracking service written in go (backed by redis)
 
 ## Installation ##
 ```bash
