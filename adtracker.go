@@ -119,8 +119,7 @@ func (rs *RedisStorage) Increment(key string) error {
 // Using json allows us to easily extend the api in the future without breaking
 // clients. We use json tags so api is not tightly coupled to variable names.
 
-// Resp represents the data format of the response body of the /ad_count
-// endpoint
+// Resp represents the data format of the response to HTTP GET requests
 type Resp struct {
 	Value int `json:"value"`
 }
@@ -133,9 +132,7 @@ type App struct {
 }
 
 // incHandler given an id, retrieves, increments and persists the
-// value stored under that ID - endpoint /track
-// Was unsure whether PUT or POST was more restful as the operation is not
-// idempotent (POST) but can be consider as an update rather than a create (PUT)
+// value stored under that ID - endpoint /ad
 func (a *App) incHandler(w http.ResponseWriter, r *http.Request) {
 	a.incHandlerVars(w, r, mux.Vars(r))
 }
@@ -198,8 +195,8 @@ func Run(port int) {
 	h := App{store: NewRedisStorage(":6379", "adtracker")}
 
 	r := mux.NewRouter()
-	r.HandleFunc("/track/{id}", h.incHandler).Methods(http.MethodPut)
-	r.HandleFunc("/ad_count/{id}", h.getHandler).Methods(http.MethodGet)
+	r.HandleFunc("/ad/{id}", h.incHandler).Methods(http.MethodPut)
+	r.HandleFunc("/ad/{id}", h.getHandler).Methods(http.MethodGet)
 
 	s := http.Server{
 		Addr:    fmt.Sprintf(":%d", port),

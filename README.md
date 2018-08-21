@@ -23,13 +23,13 @@ ad_count and track endpoints serve as get and increment operations for the given
 example client usage:
 
 ```bash
-$ curl localhost:5000/ad_count/foo
-ID foo does not exist
-$ curl localhost:5000/track/foo -X PUT
-$ curl localhost:5000/ad_count/foo
+$ curl localhost:5000/ad/foo
+Can't get [adtracker/foo] from redis: redigo: nil returned
+$ curl localhost:5000/ad/foo -X PUT
+$ curl localhost:5000/ad/foo
 {"Value":1}
-$ curl localhost:5000/track/foo -X PUT
-$ curl localhost:5000/ad_count/foo
+$ curl localhost:5000/ad/foo -X PUT
+$ curl localhost:5000/ad/foo
 {"Value":2}
 ```
 
